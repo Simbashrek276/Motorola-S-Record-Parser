@@ -188,6 +188,12 @@ Motorola S-record Parser/
 └── README.md       this file
 ```
 
+> **Note on language:** the source comments are written in Vietnamese, while all
+> identifiers and every message the program prints are in English. The files are
+> saved as UTF-8 — if the comments look like `ká»· tá»±` in your editor, it has
+> guessed the wrong encoding; in VS Code click the encoding indicator in the
+> status bar and pick *Reopen with Encoding → UTF-8*.
+
 The split between `srec.c` and `main.c` is deliberate and is the most important
 structural idea in the project:
 
@@ -323,11 +329,11 @@ typedef struct {
 } srec_record_t;
 ```
 
-One parsed line, in numeric form. Two details worth noticing:
+One parsed line, in numeric form. A few details worth noticing:
 
 - `address` is a `uint32_t` because an S3 address is 32 bits wide, while
   `addr_len` records how many of those bytes were actually present. You need both:
-  the value for arithmetic, the width for printing and for the checksum.
+  the value to print, the width to know how many digits to print it with.
 - `data` is a **fixed array inside the struct**, not a pointer. No `malloc`, no
   `free`, no leak, no dangling pointer. It costs 250 bytes per record, which is
   nothing, and it makes the struct trivially safe to copy or put on the stack.
@@ -532,32 +538,39 @@ just as broken as one that is too short.
 ### `srec_verify_checksum()`
 
 ```c
-sum += rec->byte_count;
+checksum_pos = 4 + (size_t)rec->byte_count * 2 - 2;
 
-for (i = 0; i < rec->addr_len; i++) {
-    sum += (rec->address >> (8 * (rec->addr_len - 1 - i))) & 0xFF;
-}
-
-for (i = 0; i < rec->data_len; i++) {
-    sum += rec->data[i];
+for (i = OFF_COUNT; i < checksum_pos; i += 2) {
+    st = hex_to_byte(&line[i], &b);
+    if (st != SREC_OK) return st;
+    sum += b;
 }
 
 computed = (uint8_t)(0xFF - (sum & 0xFF));
 ```
 
-The address was assembled into a single `uint32_t`, so to add its bytes to the
-sum we have to take it apart again. Shift the byte you want down to the bottom,
-then mask off everything above it. For a 2-byte address:
+This function re-reads the bytes from the **line** rather than from the struct,
+and that choice is what keeps it to a single loop. Look at what the checksum
+covers: everything except the `S`, the type digit, and the checksum itself. Those
+excluded parts sit at the two ends of the line — positions 0 and 1 at the front,
+the last two characters at the back. So "sum everything in between" is literally
+a walk from offset 2 to `checksum_pos`, two characters at a time.
 
-```
-i = 0:  address >> 8   then & 0xFF  ->  the high byte
-i = 1:  address >> 0   then & 0xFF  ->  the low byte
-```
+The alternative is to add up the fields out of the struct, but the address is
+stored as a single `uint32_t` and would have to be taken apart again with shifts
+and masks (`(address >> (8 * (addr_len - 1 - i))) & 0xFF`). Same answer, much
+harder to read. Walking the text is closer to how the rule is written down in the
+spec, and that is usually a sign you have picked the right shape.
 
-`sum` is a `uint32_t` even though only the low byte survives. It could be a
-`uint8_t` and still produce the correct answer through natural wraparound, but
-relying on overflow to be correct is the kind of cleverness that confuses the
-next reader — including you in six months. Let it grow, mask at the end.
+Two details:
+
+- The loop is safe because `srec_parse_checksum()` runs first and has already
+  confirmed the line is exactly `4 + byte_count * 2` characters long. That is
+  why the order in `srec_parse_line()` matters.
+- `sum` is a `uint32_t` even though only the low byte survives. A `uint8_t` would
+  give the same answer through natural wraparound, but relying on overflow to be
+  correct is the kind of cleverness that confuses the next reader — including you
+  in six months. Let it grow, mask at the end.
 
 ### `srec_parse_line()` — the orchestrator
 
