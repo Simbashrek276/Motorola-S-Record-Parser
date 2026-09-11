@@ -1,0 +1,39 @@
+yêu cầu
+1. xác định được các thành phần của 1 dòng trong file s-rec
+	6 thành phần: 
+		S	Type	Byte Count	Address	Data	Checksum
+
+2. viết 1 chương trình parse 1 file s-rec này và ghi kết quả như sau:
+	+ File srec này có thể được truyền vào từ cmd:
+		-> srec-parse.exe C:\windows\data...
+	+ Tính checksum:
+	   - Nếu checksum vừa tính khớp với checksum trong dòng đang parse thì hiển thị:
+		   Line<x>: passed
+		   ...
+		   END
+	   - nếu checksum vừa tính không khớp thì:
+			Hiển thị:
+			ERROR: Line<x>: Checksum invalid!
+			END!
+			Dừng chương trình luôn, không tính nữa
+			
+		Ví dụ:
+			Line100: passed
+			Line101: passed
+			ERROR: Line102: Checksum invalid!
+	+ Nếu toàn bộ các dòng trong s-rec đã đúng thì xuất ra file text gốm địa chỉ và data ngăn cách nhau bởi dấu cách.
+		Ví dụ:
+			0xaf25 7C0802A6900100049421FFF07C6C1B787C8C23783C60000038630000
+			
+		- parse toàn bộ, sau đó ghi lại từ đầu
+		- parse tới đâu, ghi data ra 1 con trỏ rồi xuất ra file text sau
+		- tạo 1 file rỗng trước khi chạy app,  parse tới đâu, ghi tới đó. Nếu có lỗi xóa luôn file đó đi.
+3. Gợi ý những kiến thức cần phải có.
+- cách làm việc với file text
+- tách chương trình ra 2 thành phần:
+	+ file main và file xử lý srec
+	+ có các hàm xử lý riêng biệt cho từng thành phần của srec trong mục 1
+	+ các hàm phải có giá trị trả về với mã lỗi chi tiết
+	+ viết ngắn gọn, không có nhiều hàm thừa
+	
+	NOTE: DATA TRONG FILE SREC NÀY ĐANG LÀ ASCII
